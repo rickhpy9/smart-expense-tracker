@@ -227,3 +227,5 @@ npm run build
 
 ## 📄 Lisensi
 Proyek ini dibuat dan dikembangkan untuk keperluan evaluasi teknis dan penggunaan profesional dengan lisensi **MIT License**.
+#   s m a r t - e x p e n s e - t r a c k e r  
+ 
