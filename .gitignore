@@ -1,2 +1,44 @@
-
+# Environment Files
+.env
+.env.*
+!.env.example
+backend-laravel/.env
 service-python/.env
+frontend-react/.env*
+
+# Python & Virtual Environment
+service-python/venv/
+venv/
+ENV/
+env/
+**/__pycache__/
+*.py[cod]
+*$py.class
+*.pyd
+.pytest_cache/
+
+# Node & Frontend (React / Vite)
+frontend-react/node_modules/
+node_modules/
+frontend-react/dist/
+dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# PHP & Backend (Laravel)
+backend-laravel/vendor/
+vendor/
+backend-laravel/public/storage
+backend-laravel/storage/app/public/receipts/*
+!backend-laravel/storage/app/public/receipts/.gitignore
+backend-laravel/storage/*.key
+.phpunit.cache/
+
+# OS & Editor Files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
