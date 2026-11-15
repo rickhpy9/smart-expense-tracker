@@ -7,6 +7,8 @@ use App\Http\Requests\StoreTransactionRequest;
 use App\Http\Requests\UpdateTransactionRequest;
 use App\Http\Resources\TransactionResource;
 use App\Models\Transaction;
+use App\Services\ReceiptProcessorService;
+use Exception;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -132,5 +134,42 @@ class TransactionController extends Controller
             'success' => true,
             'message' => 'Transaksi berhasil dihapus.',
         ]);
+    }
+
+    /**
+     * Analisis klastering transaksi dan wawasan finansial via Python ML service
+     */
+    public function insights(Request $request, ReceiptProcessorService $processor): JsonResponse
+    {
+        $transactions = $request->user()->transactions()
+            ->with('category')
+            ->where('type', 'expense')
+            ->latest('transaction_date')
+            ->get();
+
+        $payload = $transactions->map(function ($t) {
+            return [
+                'id' => $t->id,
+                'amount' => (float) $t->amount,
+                'category_name' => $t->category?->name ?? 'Lainnya',
+                'transaction_date' => $t->transaction_date?->format('Y-m-d'),
+                'description' => $t->description ?? '',
+            ];
+        })->values()->all();
+
+        try {
+            $analysis = $processor->clusterTransactions($payload);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Analisis klaster pengeluaran berhasil diambil.',
+                'data' => $analysis,
+            ]);
+        } catch (Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mengambil analisis klaster transaksi: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 }

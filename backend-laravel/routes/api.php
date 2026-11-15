@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CategoryController;
+use App\Http\Controllers\Api\ReceiptController;
 use App\Http\Controllers\Api\TransactionController;
 use Illuminate\Support\Facades\Route;
 
@@ -30,6 +31,12 @@ Route::middleware('auth:sanctum')->group(function () {
     // Categories
     Route::get('/categories', [CategoryController::class, 'index']);
 
+    // Transactions ML Insights
+    Route::get('/transactions/insights', [TransactionController::class, 'insights']);
+
     // Transactions CRUD
     Route::apiResource('transactions', TransactionController::class);
+
+    // Receipts OCR Scanning
+    Route::post('/receipts/scan', [ReceiptController::class, 'scan']);
 });
