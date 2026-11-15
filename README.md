@@ -6,7 +6,9 @@
 
 ## 📌 Gambaran Umum Proyek
 
-**Smart Expense & Receipt Tracker** adalah sistem modern pencatat pengeluaran yang menggabungkan kemampuan **Computer Vision (OCR)** dan **Machine Learning (AI Clustering)**. Pengguna dapat dengan mudah mengunggah foto struk belanja fisik atau tangkapan layar bukti pembayaran e-wallet/QRIS (ShopeePay, GoPay, DANA, OVO, m-Banking), lalu sistem akan mengekstrak nama toko/merchant, nominal harga, dan tanggal transaksi secara otomatis (*auto-fill*), sekaligus mengelompokkan kebiasaan belanja ke dalam 3 klaster pengeluaran finansial.
+**Smart Expense & Receipt Tracker** adalah sistem modern pencatat pengeluaran yang menggabungkan kemampuan **Computer Vision (OCR)** dan **Machine Learning (AI Clustering)**. 
+
+Pengguna dapat dengan mudah mengunggah foto struk belanja fisik atau tangkapan layar bukti pembayaran e-wallet/QRIS (ShopeePay, GoPay, DANA, OVO, m-Banking), lalu sistem akan mengekstrak nama toko/merchant, nominal harga, dan tanggal transaksi secara otomatis (*auto-fill*), sekaligus mengelompokkan kebiasaan belanja ke dalam 3 klaster pengeluaran finansial.
 
 ---
 
@@ -50,13 +52,13 @@ smart-expense-tracker/
 - **Preprocessing Citra:** Grayscale, Gaussian Blur, dan CLAHE (*Contrast Limited Adaptive Histogram Equalization*) dengan OpenCV.
 - **Deep Learning Text Recognition:** Ekstraksi teks multi-bahasa (Indonesia & Inggris) menggunakan EasyOCR.
 - **Regex & AI Normalization:** 
-  - Membersihkan noise tipis karakter OCR (`Rp11.00o` otomatis dinormalisasi menjadi `11000`).
-  - Mendeteksi penerima transfer/QRIS (`Bayar Ke`, `Penerima`, `Merchant`, `Outlet Name`) dan memfilter teks generik UI e-wallet (`Rincian Pesanan`, `Saldo ShopeePay`).
-  - Mendeteksi format tanggal bahasa Indonesia & Inggris (`12 Nov 2026` $\rightarrow$ `2026-11-12`).
+  - Membersihkan noise tipis karakter OCR (Rp11.00o otomatis dinormalisasi menjadi 11000).
+  - Mendeteksi penerima transfer/QRIS (Bayar Ke, Penerima, Merchant, Outlet Name) dan memfilter teks generik UI e-wallet (Rincian Pesanan, Saldo ShopeePay).
+  - Mendeteksi format tanggal bahasa Indonesia & Inggris (12 Nov 2026 -> 2026-11-12).
   - Rekomendasi kategori cerdas (*Makanan & Minuman, Belanja, Transportasi, Tagihan, Hiburan*).
 
 ### 2. K-Means Financial Clustering & AI Insights
-- Menggunakan `scikit-learn` `StandardScaler` dan algoritma **K-Means Clustering** ($k=3$).
+- Menggunakan scikit-learn StandardScaler dan algoritma **K-Means Clustering** (=3$).
 - Mengelompokkan riwayat transaksi ke dalam 3 profil belanja:
   - **Pengeluaran Ringan:** Mikro / Kebutuhan harian.
   - **Pengeluaran Sedang:** Belanja rutin / berkala.
@@ -65,7 +67,7 @@ smart-expense-tracker/
 - Dilengkapi mekanisme *fallback* yang aman jika data transaksi belum mencukupi ($< 3$ transaksi).
 
 ### 3. Autentikasi API yang Aman
-- Dilindungi oleh **Laravel Sanctum** token-based authentication (`Bearer Token`).
+- Dilindungi oleh **Laravel Sanctum** token-based authentication (Bearer Token).
 - Form Request Validation ketat untuk pendaftaran, login, dan pencatatan transaksi.
 - Hak akses terisolasi secara aman per-user (*multi-tenant safe*).
 
@@ -81,9 +83,10 @@ smart-expense-tracker/
 
 ### Prasyarat Sistem
 Pastikan perangkat Anda telah terinstal:
-- **PHP:** >= 8.2 (dengan ekstensi `pdo_mysql`, `curl`, `mbstring`, `fileinfo`)
+- **PHP:** >= 8.2 (dengan ekstensi pdo_mysql, curl, mbstring, ileinfo)
 - **Composer:** >= 2.0
-- **Node.js:** >= 18.0 & `npm`
+- **Node.js:** >= 18.0 & 
+pm
 - **Python:** >= 3.10
 - **MySQL Server:** Laragon / XAMPP / Native MySQL
 
@@ -91,25 +94,27 @@ Pastikan perangkat Anda telah terinstal:
 
 ### Langkah 1: Konfigurasi Database MySQL
 Pastikan MySQL aktif, lalu buat database:
-```sql
+`sql
 CREATE DATABASE smart_expense_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-```
+`
 
 ---
 
-### Langkah 2: Setup Backend Laravel (`/backend-laravel`)
+### Langkah 2: Setup Backend Laravel (/backend-laravel)
 
 1. Masuk ke folder backend:
-   ```bash
+   `ash
    cd backend-laravel
-   ```
+   `
+
 2. Salin environment file dan instal dependencies:
-   ```bash
+   `ash
    cp .env.example .env
    composer install
-   ```
-3. Sesuaikan konfigurasi database dan microservice Python di file `.env`:
-   ```env
+   `
+
+3. Sesuaikan konfigurasi database dan microservice Python di file .env:
+   `env
    DB_CONNECTION=mysql
    DB_HOST=127.0.0.1
    DB_PORT=3306        # Sesuaikan port MySQL Anda (misal 3306 atau 3309)
@@ -119,90 +124,97 @@ CREATE DATABASE smart_expense_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_c
 
    PYTHON_SERVICE_URL=http://127.0.0.1:8001
    PYTHON_SERVICE_TOKEN=smart-expense-secret-key-2026
-   ```
+   `
+
 4. Generate Application Key, jalankan migrasi dan seeder:
-   ```bash
+   `ash
    php artisan key:generate
    php artisan migrate --seed
    php artisan storage:link
-   ```
+   `
+
 5. Jalankan server Laravel:
-   ```bash
+   `ash
    php artisan serve
-   ```
-   *Backend berjalan di: `http://127.0.0.1:8000`*
+   `
+   *Backend berjalan di: http://127.0.0.1:8000*
 
 ---
 
-### Langkah 3: Setup Microservice Python FastAPI (`/service-python`)
+### Langkah 3: Setup Microservice Python FastAPI (/service-python)
 
 1. Buka terminal baru dan masuk ke folder Python service:
-   ```bash
+   `ash
    cd service-python
-   ```
+   `
+
 2. Buat dan aktifkan virtual environment:
    - **Windows (PowerShell):**
-     ```powershell
+     `powershell
      python -m venv venv
-     .\venv\Scripts\Activate.ps1
-     ```
+     .env\Scripts\Activate.ps1
+     `
    - **Linux / macOS:**
-     ```bash
+     `ash
      python3 -m venv venv
      source venv/bin/activate
-     ```
+     `
+
 3. Instal dependencies:
-   ```bash
+   `ash
    pip install --upgrade pip
    pip install -r requirements.txt
-   ```
+   `
+
 4. Jalankan Uvicorn server:
-   ```bash
+   `ash
    uvicorn main:app --host 0.0.0.0 --port 8001 --reload
-   ```
-   *Service Python aktif di: `http://127.0.0.1:8001` (Swagger UI: `http://127.0.0.1:8001/docs`)*
+   `
+   *Service Python aktif di: http://127.0.0.1:8001 (Swagger UI: http://127.0.0.1:8001/docs)*
 
 ---
 
-### Langkah 4: Setup Frontend React (`/frontend-react`)
+### Langkah 4: Setup Frontend React (/frontend-react)
 
 1. Buka terminal ketiga dan masuk ke folder frontend:
-   ```bash
+   `ash
    cd frontend-react
-   ```
+   `
+
 2. Instal dependencies Node.js:
-   ```bash
+   `ash
    npm install
-   ```
+   `
+
 3. Jalankan server pengembangan Vite:
-   ```bash
+   `ash
    npm run dev
-   ```
-   *Frontend React aktif di: `http://localhost:5173`*
+   `
+   *Frontend React aktif di: http://localhost:5173*
 
 ---
 
 ## 🧪 Perintah Pengujian & Verifikasi (Automated Tests)
 
 ### 1. Uji Service Python (OCR & K-Means)
-```powershell
+`powershell
 cd service-python
-.\venv\Scripts\python.exe test_service.py
-```
-*Menguji pembersihan noise nominal Rupiah (`Rp11.000` & `Rp11.00o`), multi-line Total struk fisik, QRIS ShopeePay/GoPay, dan algoritma clustering K-Means.*
+.env\Scripts\python.exe test_service.py
+`
+*Menguji pembersihan noise nominal Rupiah (Rp11.000 & Rp11.00o), multi-line Total struk fisik, QRIS ShopeePay/GoPay, dan algoritma clustering K-Means.*
 
 ### 2. Uji Backend Laravel API (Feature Tests)
-```bash
+`ash
 cd backend-laravel
 php artisan test
-```
+`
 *Menguji registrasi, login, token Sanctum, CRUD transaksi, mock OCR receipt upload, dan transaction insights.*
 
 ### 3. Uji Build Produksi Frontend React
-```bash
+`ash
 cd frontend-react
 npm run build
-```
+`
 
 ---
 
@@ -210,22 +222,20 @@ npm run build
 
 | Method | Endpoint | Deskripsi | Akses |
 |---|---|---|---|
-| `POST` | `/api/auth/register` | Mendaftarkan akun pengguna baru | Publik |
-| `POST` | `/api/auth/login` | Login & mendapatkan Sanctum Bearer Token | Publik |
-| `GET` | `/api/auth/me` | Mengambil profil user yang sedang login | `auth:sanctum` |
-| `POST` | `/api/auth/logout` | Menghapus token sesi aktif | `auth:sanctum` |
-| `GET` | `/api/categories` | Mengambil daftar seluruh kategori | `auth:sanctum` |
-| `GET` | `/api/transactions` | Mengambil riwayat transaksi user (paginate & filter) | `auth:sanctum` |
-| `POST` | `/api/transactions` | Mencatat transaksi baru | `auth:sanctum` |
-| `GET` | `/api/transactions/{id}` | Mengambil detail transaksi spesifik | `auth:sanctum` |
-| `PUT` | `/api/transactions/{id}` | Memperbarui transaksi | `auth:sanctum` |
-| `DELETE` | `/api/transactions/{id}` | Menghapus transaksi | `auth:sanctum` |
-| `POST` | `/api/receipts/scan` | Unggah struk & ekstraksi data via Python OCR | `auth:sanctum` |
-| `GET` | `/api/transactions/insights` | Segmentasi K-Means & rekomendasi keuangan AI | `auth:sanctum` |
+| POST | /api/auth/register | Mendaftarkan akun pengguna baru | Publik |
+| POST | /api/auth/login | Login & mendapatkan Sanctum Bearer Token | Publik |
+| GET | /api/auth/me | Mengambil profil user yang sedang login | uth:sanctum |
+| POST | /api/auth/logout | Menghapus token sesi aktif | uth:sanctum |
+| GET | /api/categories | Mengambil daftar seluruh kategori | uth:sanctum |
+| GET | /api/transactions | Mengambil riwayat transaksi user (paginate & filter) | uth:sanctum |
+| POST | /api/transactions | Mencatat transaksi baru | uth:sanctum |
+| GET | /api/transactions/{id} | Mengambil detail transaksi spesifik | uth:sanctum |
+| PUT | /api/transactions/{id} | Memperbarui transaksi | uth:sanctum |
+| DELETE | /api/transactions/{id} | Menghapus transaksi | uth:sanctum |
+| POST | /api/receipts/scan | Unggah struk & ekstraksi data via Python OCR | uth:sanctum |
+| GET | /api/transactions/insights | Segmentasi K-Means & rekomendasi keuangan AI | uth:sanctum |
 
 ---
 
 ## 📄 Lisensi
 Proyek ini dibuat dan dikembangkan untuk keperluan evaluasi teknis dan penggunaan profesional dengan lisensi **MIT License**.
-#   s m a r t - e x p e n s e - t r a c k e r  
- 
