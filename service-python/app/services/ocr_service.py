@@ -4,20 +4,19 @@ import datetime
 from typing import List, Optional
 import cv2
 import numpy as np
-import easyocr
+from rapidocr_onnxruntime import RapidOCR
 
 from app.schemas.ocr import ReceiptParsedData, OCRExtractResponse
 
 
 class OCRService:
     _instance = None
-    _reader: Optional[easyocr.Reader] = None
+    _reader: Optional[RapidOCR] = None
 
     @classmethod
-    def get_reader(cls) -> easyocr.Reader:
+    def get_reader(cls) -> RapidOCR:
         if cls._reader is None:
-            # Gunakan ['en'] saja (alfabet Latin penuh) agar hemat RAM ~45% di container cloud
-            cls._reader = easyocr.Reader(['en'], gpu=False, verbose=False)
+            cls._reader = RapidOCR()
         return cls._reader
 
     @classmethod
@@ -491,29 +490,30 @@ class OCRService:
 
         return "Makanan & Minuman"
 
-    @classmethod
+   @classmethod
     def extract_from_image(cls, image_bytes: bytes) -> OCRExtractResponse:
         """
         Fungsi utama pipeline OCR:
         1. Preprocess OpenCV
-        2. Inferensi EasyOCR
+        2. Inferensi RapidOCR (ONNX Runtime)
         3. Regex parsing yang diperbarui
         """
         processed_img = cls.preprocess_image(image_bytes)
         reader = cls.get_reader()
 
-        results = reader.readtext(processed_img, detail=1, paragraph=False)
+        results, _ = reader(processed_img)
         del processed_img
         gc.collect()
 
         lines = []
         confidences = []
 
-        for bbox, text, conf in results:
-            clean = text.strip()
-            if clean:
-                lines.append(clean)
-                confidences.append(float(conf))
+        if results:
+            for bbox, text, conf in results:
+                clean = text.strip()
+                if clean:
+                    lines.append(clean)
+                    confidences.append(float(conf))
 
         raw_text = "\n".join(lines)
         avg_confidence = float(np.mean(confidences)) if confidences else 0.0
