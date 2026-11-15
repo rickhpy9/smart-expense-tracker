@@ -1,3 +1,4 @@
+import gc
 import re
 import datetime
 from typing import List, Optional
@@ -15,8 +16,8 @@ class OCRService:
     @classmethod
     def get_reader(cls) -> easyocr.Reader:
         if cls._reader is None:
-            # Menggunakan bahasa Indonesia dan Inggris
-            cls._reader = easyocr.Reader(['id', 'en'], gpu=False)
+            # Gunakan ['en'] saja (alfabet Latin penuh) agar hemat RAM ~45% di container cloud
+            cls._reader = easyocr.Reader(['en'], gpu=False, verbose=False)
         return cls._reader
 
     @classmethod
@@ -24,14 +25,22 @@ class OCRService:
         """
         Melakukan preprocessing gambar menggunakan OpenCV:
         1. Decode bytes ke array numpy OpenCV
-        2. Konversi ke Grayscale
-        3. Denoising Gaussian Blur
-        4. CLAHE untuk penajaman kontras teks struk
+        2. Resize proporsional jika lebar > 1000px (mencegah lonjakan RAM EasyOCR)
+        3. Konversi ke Grayscale
+        4. Denoising Gaussian Blur
+        5. CLAHE untuk penajaman kontras teks struk
         """
         np_arr = np.frombuffer(image_bytes, np.uint8)
         image = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
         if image is None:
             raise ValueError("File gambar tidak valid atau rusak.")
+
+        # Batasi lebar maksimal 1000px untuk mencegah OOM saat inferensi
+        max_width = 1000
+        h, w = image.shape[:2]
+        if w > max_width:
+            scale = max_width / float(w)
+            image = cv2.resize(image, (max_width, int(h * scale)), interpolation=cv2.INTER_AREA)
 
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         blurred = cv2.GaussianBlur(gray, (3, 3), 0)
@@ -493,7 +502,9 @@ class OCRService:
         processed_img = cls.preprocess_image(image_bytes)
         reader = cls.get_reader()
 
-        results = reader.readtext(processed_img)
+        results = reader.readtext(processed_img, detail=1, paragraph=False)
+        del processed_img
+        gc.collect()
 
         lines = []
         confidences = []
