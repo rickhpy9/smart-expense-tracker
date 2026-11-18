@@ -38,7 +38,7 @@ return [
     'python' => [
         'url' => env('PYTHON_SERVICE_URL', 'http://127.0.0.1:8001'),
         'token' => env('PYTHON_SERVICE_TOKEN', 'smart-expense-secret-key-2026'),
-        'timeout' => env('PYTHON_SERVICE_TIMEOUT', 45),
+        'timeout' => env('PYTHON_SERVICE_TIMEOUT', 90),
     ],
 
 ];
