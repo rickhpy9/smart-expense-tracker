@@ -29,6 +29,8 @@ class ReceiptProcessorService
      */
     public function extractReceipt(UploadedFile $file): array
     {
+        set_time_limit(120);
+        
         $endpoint = "{$this->baseUrl}/api/v1/ocr/extract";
 
         try {
