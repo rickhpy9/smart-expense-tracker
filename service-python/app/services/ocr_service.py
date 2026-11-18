@@ -24,7 +24,7 @@ class OCRService:
         """
         Melakukan preprocessing gambar menggunakan OpenCV:
         1. Decode bytes ke array numpy OpenCV
-        2. Resize proporsional jika lebar > 1000px (mencegah lonjakan RAM EasyOCR)
+        2. Resize proporsional jika lebar > 1000px (mencegah lonjakan RAM)
         3. Konversi ke Grayscale
         4. Denoising Gaussian Blur
         5. CLAHE untuk penajaman kontras teks struk
@@ -34,7 +34,6 @@ class OCRService:
         if image is None:
             raise ValueError("File gambar tidak valid atau rusak.")
 
-        # Batasi lebar maksimal 1000px untuk mencegah OOM saat inferensi
         max_width = 1000
         h, w = image.shape[:2]
         if w > max_width:
@@ -63,25 +62,16 @@ class OCRService:
     @classmethod
     def parse_amount(cls, text: str) -> Optional[float]:
         """
-        Mengonversi teks nominal Rupiah ke integer/float utuh:
-        1. Konversi noise OCR o/O menjadi 0 terlebih dahulu SEBELUM menghapus huruf/simbol non-digit
-           (Contoh: "Rp11.00o" -> "Rp11.000")
-        2. Perbaiki pola '.00' setelah Rp / nominal ribuan jika 1 digit nol terpotong OCR
-           (Contoh: "Rp11.00" -> "Rp11.000")
-        3. Hapus simbol mata uang, spasi, dan seluruh pemisah ribuan ('.' dan ',')
-        4. Konversi int() utuh tanpa konversi float() sebelum pembersihan ribuan
+        Mengonversi teks nominal Rupiah ke integer/float utuh.
         """
         if not text:
             return None
 
-        # 1. Konversi Noise OCR o/O menjadi 0 terlebih dahulu
-        # Contoh: "Rp11.00o" -> "Rp11.000"
         s = re.sub(r'(?<=\d)[oO]|[oO](?=\d)', '0', text.strip())
         s = re.sub(r'(?<=\d)[lI]|[lI](?=\d)', '1', s)
 
         has_rp = bool(re.search(r'(?:rp\.?|idr)', s, re.IGNORECASE))
 
-        # Bersihkan prefix mata uang dan label umum
         cleaned = re.sub(
             r'^(?:rp\.?|idr|total|bayar|kamu\s*membayar|nominal|netto|net)[:\s=]*',
             '',
@@ -89,27 +79,19 @@ class OCRService:
             flags=re.IGNORECASE
         ).strip()
 
-        # Sisakan hanya digit, titik, dan koma
         cleaned = re.sub(r'[^\d,\.]', '', cleaned)
         if not cleaned:
             return None
 
-        # 2. Tangani Sen di Akhir Angka jika ada format desimal sah (,00 atau ribuan diikuti .00)
-        # Contoh: 11.000,00 -> 11.000
         cleaned = re.sub(r',00$', '', cleaned)
-        # Jika ada pemisah ribuan jelas diikuti .00 (misal 11,000.00 atau 1.250.000.00)
         if re.search(r'[,\.]\d{3}\.00$', cleaned):
             cleaned = re.sub(r'\.00$', '', cleaned)
 
-        # Fallback Noise OCR: Jika ada format ribuan dengan hanya 2 nol (misal Rp11.00 atau 11.00 atau 74.00)
-        # akibat 1 digit nol di belakang terpotong oleh EasyOCR
         if (has_rp and re.search(r'^\d{1,3}\.00$', cleaned)) or re.search(r'^\d{2,3}\.00$', cleaned):
             cleaned = cleaned + "0"
 
-        # 3. Hapus SELURUH pemisah ribuan ('.' dan ',')
         cleaned = cleaned.replace('.', '').replace(',', '')
 
-        # 4. Pastikan tidak ada konversi float() sebelum pembersihan ribuan
         if not cleaned or not cleaned.isdigit():
             return None
 
@@ -122,13 +104,8 @@ class OCRService:
     @classmethod
     def extract_total(cls, lines: List[str]) -> Optional[float]:
         """
-        Pencarian Total Pembayaran / Transfer (Struk Fisik + Bukti QRIS / E-Wallet):
-        1. Prioritaskan kata kunci e-wallet & struk:
-           - Kamu Membayar, Total Pembayaran, Total Bayar, Nominal, Jumlah Transfer, dsb.
-        2. Periksa nominal pada baris yang sama setelah kata kunci maupun 1-2 baris setelahnya.
-        3. Cegah tahun (2020-2035) dan nomor referensi/SN panjang terbaca sebagai nominal pada logika fallback.
+        Pencarian Total Pembayaran / Transfer (Struk Fisik + Bukti QRIS / E-Wallet).
         """
-        # Daftar keyword pembayaran spesifik (diurutkan berdasarkan prioritas)
         payment_keywords = [
             r'kamu\s*membayar',
             r'total\s*pembayaran',
@@ -149,37 +126,31 @@ class OCRService:
             r'pembayaran\s*berhasil',
             r'bayar',
             r'tunai',
-            r'total',  # Wajib mengecualikan subtotal
+            r'total',
         ]
 
-        # Pola token nominal (menjaga prefix Rp/IDR jika ada)
         token_regex = re.compile(r'(?:(?:rp\.?|idr)\s*)?[0-9oO\.,]{3,}', re.IGNORECASE)
 
-        # Prioritas 1: Cari pada baris yang mengandung keyword di atas
         for kw in payment_keywords:
             pattern = re.compile(rf'\b{kw}\b', re.IGNORECASE)
             for idx, raw_line in enumerate(lines):
                 line = raw_line.strip()
 
-                # Selalu abaikan jika baris mengandung Subtotal
                 if re.search(r'sub\s*total', line, re.IGNORECASE):
                     continue
 
                 if pattern.search(line):
-                    # 1a. Periksa apakah ada nominal di baris yang sama
                     same_line_tokens = token_regex.findall(line)
                     for token in same_line_tokens:
                         amount = cls.parse_amount(token)
                         if amount and not cls._is_invalid_amount_candidate(amount, line):
                             return amount
 
-                    # 1b. Periksa 1 hingga 2 baris tepat setelahnya
                     for offset in [1, 2]:
                         next_idx = idx + offset
                         if next_idx < len(lines):
                             next_line = lines[next_idx].strip()
 
-                            # Lewati jika baris lanjutan adalah label lain
                             if re.search(r'^(cash|change|kembali|kembalian|subtotal|pajak|tax|disc|metode|waktu|tanggal|transaksi)', next_line, re.IGNORECASE):
                                 continue
 
@@ -189,12 +160,10 @@ class OCRService:
                                 if amount and not cls._is_invalid_amount_candidate(amount, next_line):
                                     return amount
 
-        # Prioritas 2: Fallback pencarian nominal terbesar yang valid (membersihkan tahun dan nomor referensi)
         candidates = []
         for line in lines:
             line_str = line.strip()
 
-            # Abaikan subtotal atau baris nomor referensi/SN/ID/VA/No
             if re.search(r'sub\s*total', line_str, re.IGNORECASE):
                 continue
             if cls._is_reference_line(line_str):
@@ -204,7 +173,6 @@ class OCRService:
             for t in found_tokens:
                 parsed = cls.parse_amount(t)
                 if parsed and not cls._is_invalid_amount_candidate(parsed, line_str):
-                    # Rentang realistis nominal belanja / transfer (Rp 500 s/d Rp 100.000.000)
                     if 500 <= parsed <= 100_000_000:
                         candidates.append(parsed)
 
@@ -212,21 +180,12 @@ class OCRService:
 
     @classmethod
     def _is_invalid_amount_candidate(cls, amount: float, line_context: str) -> bool:
-        """
-        Mendeteksi apakah sebuah angka BUKAN nominal harga:
-        - Angka tahun (2020 - 2035) yang berdiri sendiri atau di baris tanggal/waktu
-        - Nomor referensi / SN / VA / ID yang panjangnya lebih dari 9 digit
-        """
-        # 1. Cek tahun (2020 s/d 2035)
         if 2020 <= amount <= 2035:
-            # Jika tepat sama dengan tahun dan baris mengandung kata/simbol tanggal/waktu
             if any(term in line_context.lower() for term in ['wib', 'wita', 'wit', 'tgl', 'tanggal', 'date', 'time', 'jam', ':', '/', '-']):
                 return True
-            # Jika nominal persis 4 digit tahun (jarang sekali pengeluaran Rp 2.026)
             if float(int(amount)) == amount:
                 return True
 
-        # 2. Cek apakah angka berasal dari deretan digit panjang (> 9 digit) misal order ID
         digits_only = re.sub(r'\D', '', line_context)
         if len(digits_only) >= 9 and str(int(amount)) in digits_only:
             return True
@@ -235,9 +194,6 @@ class OCRService:
 
     @classmethod
     def _is_reference_line(cls, line: str) -> bool:
-        """
-        Mengecek apakah baris berisi nomor referensi, SN, kode transaksi, dsb.
-        """
         ref_keywords = [
             r'transaksi\s*sn', r'order\s*sn', r'ref', r'\bid\b', r'\bva\b',
             r'\bno\b', r'no\.', r'nomor', r'kode\s*transaksi', r'invoice',
@@ -248,12 +204,6 @@ class OCRService:
 
     @classmethod
     def extract_date(cls, lines: List[str]) -> Optional[str]:
-        """
-        Ekstraksi dan normalisasi tanggal di seluruh baris teks:
-        - Format teks nama bulan ID / EN: '12 Nov 2026', '12 November 2026', '12-Nov-2026'
-        - Format numerik: 'YYYY-MM-DD', 'DD/MM/YYYY', 'DD-MM-YYYY'
-        - Mengembalikan format ISO: 'YYYY-MM-DD'
-        """
         months_map = {
             'jan': 1, 'januari': 1, 'january': 1,
             'feb': 2, 'februari': 2, 'february': 2,
@@ -286,8 +236,8 @@ class OCRService:
                     continue
 
         numeric_patterns = [
-            r'(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})',     # YYYY-MM-DD
-            r'(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})',     # DD-MM-YYYY
+            r'(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})',
+            r'(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})',
         ]
 
         for p in numeric_patterns:
@@ -308,17 +258,8 @@ class OCRService:
 
     @classmethod
     def extract_merchant(cls, lines: List[str]) -> Optional[str]:
-        """
-        Ekstraksi merchant_name untuk struk fisik & QRIS / Bukti Transfer E-Wallet:
-        1. Deteksi label penerima QRIS / E-Wallet / Outlet:
-           'Bayar Ke', 'Penerima', 'Merchant', 'Nama Merchant', 'Kepada', 'Tujuan', 'Outlet Name', 'Outlet'
-        2. Deteksi brand khusus terkemuka (misal Kopi Kenangan, Starbucks, Indomaret, dll).
-        3. Jika ada brand + outlet, gabungkan (misal: 'Kopi Kenangan - Ruko Telagamas Semarang').
-        4. Abaikan judul/label umum e-wallet (Rincian Pesanan, Detail Transaksi, Bukti Pembayaran, Saldo ShopeePay, dll).
-        """
         full_text_upper = "\n".join(lines).upper()
 
-        # 1. Deteksi Brand Khusus Terkenal
         brand_mapping = {
             "KENANGAN": "Kopi Kenangan",
             "KOPI KENANGAN": "Kopi Kenangan",
@@ -351,7 +292,6 @@ class OCRService:
                 detected_brand = brand_official
                 break
 
-        # 2. Deteksi label penerima QRIS / Transfer / Outlet Name
         recipient_labels = [
             r'bayar\s*ke',
             r'penerima',
@@ -383,22 +323,18 @@ class OCRService:
             if detected_recipient:
                 break
 
-        # Jika ditemukan brand dan outlet/penerima
         if detected_brand:
             if detected_recipient and detected_recipient.lower() not in detected_brand.lower():
                 return f"{detected_brand} - {detected_recipient}"
             return detected_brand
 
-        # Jika ditemukan penerima dari QRIS/E-Wallet (misal 'Padang Murah Hasanudin')
         if detected_recipient:
             return detected_recipient
 
-        # 3. Fallback: Cari baris teratas yang bukan metadata generik / header aplikasi
         for line in lines[:8]:
             clean_line = line.strip()
             if cls._is_generic_metadata(clean_line):
                 continue
-            # Jika mengandung setidaknya 3 karakter huruf alfabet
             if len(re.findall(r'[A-Za-z]', clean_line)) >= 3:
                 return clean_line
 
@@ -406,21 +342,14 @@ class OCRService:
 
     @classmethod
     def _is_generic_metadata(cls, text: str) -> bool:
-        """
-        Mengecek apakah sebuah baris hanya berisi metadata struk atau label UI generik e-wallet.
-        Wajib mengecualikan 'Rincian Pesanan', 'Saldo ShopeePay', 'Transaksi Berhasil', dll.
-        """
         clean = text.strip().upper()
         if not clean or len(clean) < 3:
             return True
 
         generic_keywords = [
-            # Header Struk Tradisional
             "RECEIPT", "TRANSACTION", "INVOICE", "NOTA", "STRUK", "SELAMAT DATANG",
             "TERIMA KASIH", "THANK YOU", "ORDER ID", "REF NO", "TAX INVOICE",
             "QRIS", "MERCHANT ID", "TERMINAL ID", "BILL NO", "TABLE NO", "CASHIER",
-
-            # Header / Label UI E-Wallet & M-Banking (Blacklist)
             "RINCIAN PESANAN", "DETAIL TRANSAKSI", "RINCIAN TRANSAKSI",
             "BUKTI PEMBAYARAN", "BUKTI TRANSFER", "BUKTI TRANSAKSI",
             "TRANSAKSI BERHASIL", "PEMBAYARAN BERHASIL", "TRANSFER BERHASIL", "BERHASIL",
@@ -432,12 +361,10 @@ class OCRService:
             "TOTAL PEMBAYARAN", "TOTAL BAYAR", "TOTAL BELANJA", "TOTAL", "SUBTOTAL"
         ]
 
-        # Cek jika sama persis atau diawali dengan keyword generik
         for kw in generic_keywords:
             if clean == kw or clean.startswith(kw + ":") or clean.startswith(kw + " "):
                 return True
 
-        # Jika baris didominasi angka / nomor referensi panjang (misal 10+ digit)
         digit_count = len(re.findall(r'\d', clean))
         if digit_count >= 9 and digit_count / len(clean) > 0.5:
             return True
@@ -446,15 +373,10 @@ class OCRService:
 
     @classmethod
     def suggest_category(cls, merchant: str, raw_text: str) -> str:
-        """
-        Menentukan kategori otomatis dengan dukungan kuliner lokal Indonesia:
-        padang, warung, wm, soto, ayam, bakso, mie, nasi, geprek, pecel, kedai, dll.
-        """
         text = f"{merchant} {raw_text}".lower()
 
         categories_map = {
             "Makanan & Minuman": [
-                # Kuliner lokal Indonesia
                 "padang", "warung", "wm", "soto", "ayam", "bakso", "mie", "nasi",
                 "geprek", "pecel", "kedai", "resto", "restaurant", "cafe", "kopi",
                 "coffee", "kenangan", "teh", "boba", "martabak", "sate", "bebek",
@@ -484,13 +406,12 @@ class OCRService:
 
         for category, keywords in categories_map.items():
             for kw in keywords:
-                # Pencocokan kata kunci dengan word boundary atau substring
                 if kw in text:
                     return category
 
         return "Makanan & Minuman"
 
-   @classmethod
+    @classmethod
     def extract_from_image(cls, image_bytes: bytes) -> OCRExtractResponse:
         """
         Fungsi utama pipeline OCR:
